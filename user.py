@@ -1,11 +1,12 @@
 import socket
+from room_manager import RoomManager
 
 
 class User:
-    def __init__(self, connection, name):
+    def __init__(self, connection: socket.socket, name: str):
         self.connection = connection
         self.name = name
-        self.room = None
+        print("New user created, nickname: {0}.".format(name))
 
     def send(self, msg) -> int:
         """해당 유저에게 메시지를 바이트 형태로 바꿔 보낸다.
@@ -25,7 +26,7 @@ class User:
         else:
             return self.connection.send(str(msg).encode())
 
-    def recv(self, buffer=4096):
+    def recv(self, buffer=4096) -> str:
         """해당 유저에게서 데이터를 받아온다.
 
         Parameter:
@@ -36,8 +37,4 @@ class User:
             str
                 유저에게 받아온 데이터를 문자열로 변환 후 리턴
         """
-        data = self.connection.recv(buffer)
-        while data:
-            data += self.connection.recv(buffer)
-
-        return str(data)
+        return self.connection.recv(buffer).decode().strip()
