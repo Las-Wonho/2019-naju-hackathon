@@ -25,5 +25,19 @@ class User:
         else:
             return self.connection.send(str(msg).encode())
 
-    def recv(self):
-        
+    def recv(self, buffer=4096):
+        """해당 유저에게서 데이터를 받아온다.
+
+        Parameter:
+            buffer: int
+                선택적. 한번에 데이터를 받아올 버퍼의 양을 지정하는 정수
+
+        Return:
+            str
+                유저에게 받아온 데이터를 문자열로 변환 후 리턴
+        """
+        data = self.connection.recv(buffer)
+        while data:
+            data += self.connection.recv(buffer)
+
+        return str(data)
