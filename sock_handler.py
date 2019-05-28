@@ -64,6 +64,9 @@ class SockHandler(BaseRequestHandler):
             elif method == "reqEntranceRoom":
                 room_id = datas["roomId"]
 
+                ##########################################
+                # 여기서 방 검사를 했던 이유가 뭐였더라???? #
+                ##########################################
                 if RoomManager().check_room_is_exist(room_id):
                     self.user.send(
                         json.dumps(
@@ -72,17 +75,41 @@ class SockHandler(BaseRequestHandler):
                     )
                     if RoomManager().find_room(room_id).is_full():
                         RoomManager().start_game(room_id)
-            elif method == "reqExitRoom":
-                pass
+            elif method == "reqRoomMake":
+                self.user.send(
+                    json.dumps(
+                        RoomManager().new_rooms(
+                            datas["name"],
+                            self.user,
+                            datas["content"],
+                            datas["subject"]
+                        )
+                    )
+                )
+            elif method == "reqRoomExit":
+                ##################################
+                # 여기서도 방 검사를 해야하나????? #
+                ##################################
+                room_id = datas["roomId"]
+
+                self.user.send(
+                    json.dumps(
+                        RoomManager().exit_room(room_id, self.user)
+                    )
+                )
+                if RoomManager().find_room(room_id).is_empty():
+                    RoomManager().remove_room(room_id)
             elif method is None:
                 continue
         print("Break Second For Loop")
 
+        print("{0} disconnected from server".format(self.user.name))
         self.request.close()
 
     def processing_message(self, message):
         try:
-            response = json.loads(message)["msgType"], json.loads(message)["Data"]
+            msg = json.loads(message)
+            response = msg["msgType"], msg["Data"]
             self.null_count = 0
             return response
         except json.decoder.JSONDecodeError:
