@@ -8,6 +8,10 @@ class User:
         self.name = name
         print("New user created, nickname: {0}.".format(name))
 
+    def __del__(self):
+        self.connection.close()
+        print("{0} disconnected from server".format(self.name))
+
     def send(self, msg) -> int:
         """해당 유저에게 메시지를 바이트 형태로 바꿔 보낸다.
 
@@ -37,4 +41,7 @@ class User:
             str
                 유저에게 받아온 데이터를 문자열로 변환 후 리턴
         """
-        return self.connection.recv(buffer).decode().strip()
+        try:
+            return self.connection.recv(buffer).decode().strip()
+        except ConnectionResetError:
+            pass

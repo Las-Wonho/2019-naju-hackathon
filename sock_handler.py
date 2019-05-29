@@ -12,7 +12,13 @@ response_template = {
         "msg": ""
     }
 }
-
+retry = {
+    "msgType": "rspAnswerCorrect",
+    "Data": {
+        "reqResult": False,
+        "msg": "Not correct answer."
+    }
+}
 user_ids = []
 
 
@@ -22,8 +28,15 @@ class SockHandler(BaseRequestHandler):
 
         # hand shake start
         while self.null_count < 10:
-            msg = self.request.recv(1024).decode().strip()
-            print("Get Message:", msg)
+            try:
+                msg = self.request.recv(1024).decode().strip()
+            except ConnectionResetError:
+                print(
+                    "{0} shutdown during server recieves messages."
+                    .format(self.user.name)
+                )
+                return
+            print("Get Message:", msg, end="\n\n")
 
             method, datas = self.processing_message(msg)
             response = response_template
@@ -52,7 +65,7 @@ class SockHandler(BaseRequestHandler):
 
         while self.null_count < 10:
             msg = self.user.recv()
-            print("Get Message:", msg)
+            print("Get Message:", msg, end="\n\n")
             method, datas = self.processing_message(msg)
 
             if method == "reqRoomList":
@@ -63,18 +76,16 @@ class SockHandler(BaseRequestHandler):
                 )
             elif method == "reqEntranceRoom":
                 room_id = datas["roomId"]
-
-                ##########################################
-                # 여기서 방 검사를 했던 이유가 뭐였더라???? #
-                ##########################################
                 if RoomManager().check_room_is_exist(room_id):
                     self.user.send(
                         json.dumps(
-                            RoomManager().join_room(datas["roomId"], self.user)
+                            RoomManager().join_room(room_id, self.user)
                         )
                     )
                     if RoomManager().find_room(room_id).is_full():
                         RoomManager().start_game(room_id)
+                else:
+                    print("{0} room is not exists.".format(room_id))
             elif method == "reqRoomMake":
                 self.user.send(
                     json.dumps(
@@ -87,11 +98,7 @@ class SockHandler(BaseRequestHandler):
                     )
                 )
             elif method == "reqRoomExit":
-                ##################################
-                # 여기서도 방 검사를 해야하나????? #
-                ##################################
                 room_id = datas["roomId"]
-
                 self.user.send(
                     json.dumps(
                         RoomManager().exit_room(room_id, self.user)
@@ -99,12 +106,21 @@ class SockHandler(BaseRequestHandler):
                 )
                 if RoomManager().find_room(room_id).is_empty():
                     RoomManager().remove_room(room_id)
+            elif method == "reqTouchEvent":
+                room = RoomManager().find_room(room_id)
+                room.draw(datas["Event"], datas["Pen"], self.user)
+            elif method == "reqAnswerCorrect":
+                room = RoomManager().find_room(room_id)
+                if int(datas["attempt"]) > 3:
+                    room.end_game(False)
+                elif room.keyword == datas["answer"]:
+                    room.end_game(True)
+                else:
+                    self.user.send(retry)
             elif method is None:
                 continue
         print("Break Second For Loop")
-
-        print("{0} disconnected from server".format(self.user.name))
-        self.request.close()
+        del self.user
 
     def processing_message(self, message):
         try:
@@ -112,6 +128,6 @@ class SockHandler(BaseRequestHandler):
             response = msg["msgType"], msg["Data"]
             self.null_count = 0
             return response
-        except json.decoder.JSONDecodeError:
+        except (TypeError, json.decoder.JSONDecodeError):
             self.null_count += 1
             return None, None

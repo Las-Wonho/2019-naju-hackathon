@@ -1,5 +1,7 @@
 import json
 import random
+import threading
+import time
 
 from utils import Singleton, hash
 
@@ -39,6 +41,25 @@ class RoomManager(Singleton):
             }
         }
 
+    def get_permission_response(self, observe=True, draw=True):
+        return {
+            "msgType": "rspPermission",
+            "Data": {
+                "reqResult": True,
+                "msg": "",
+                "permission": [
+                    {
+                        "type": "observe",
+                        "value": observe
+                    },
+                    {
+                        "type": "draw",
+                        "value": draw
+                    }
+                ]
+            }
+        }
+
     def get_room_infomation(self):
         return {
             "msgType": "rspRoomList",
@@ -64,6 +85,30 @@ class RoomManager(Singleton):
         for index, user in enumerate(room.users[:4]):
             response["Data"]["turn"] = index
             user.send(json.dumps(response))
+
+        room.users[0].send(json.dumps(
+            self.get_permission_response(True, True))
+        )
+
+        room.users[-1].send(json.dumps(
+            self.get_permission_response(True, False)
+        ))
+
+        def thread_job():
+            for i in range(0, 4):
+                print("users[{0}] start drawing.".format(i))
+                time.sleep(5)
+                for j in range(0, i):
+                    room.users[i].send(json.dumps(
+                        self.get_permission_response(True, False)
+                    ))
+                room.users[i].send(json.dumps(
+                    self.get_permission_response(True, True)
+                ))
+                room.now_turn = i
+            print("End drawing. and tagger's turn.")
+        t = threading.Thread(target=thread_job)
+        t.start()
 
     def find_room(self, id):
         return [room for room in self.rooms if room.id == id][0]
@@ -95,16 +140,20 @@ class Room(object):
         self.tagger = None
         self.desc = desc
         self.subject = subject
+        self.keyword = None
+        self.now_turn = None
 
         print("Room created:", self.id)
 
     @property
     def dictionaly(self):
         return {
+            "name": self.name,
             "id": self.id,
             "waiterCnt": self.count,
-            "watierNames": [user.name for user in self.users],
-            "content": self.desc
+            "waiterNames": [user.name for user in self.users],
+            "content": self.desc,
+            "subject": self.subject
         }
 
     def update_count(self):
@@ -155,16 +204,44 @@ class Room(object):
 
         random.shuffle(self.users)
         tagger = self.users[4]
+        self.keyword = get_keyword(self.subject)
 
         response["Data"]["msg"] = "Start Game"
         response["Data"]["tagger"] = tagger.name
         response["Data"]["roomId"] = self.id
         response["Data"]["subject"] = self.subject
-        response["Data"]["keyword"] = get_keyword(self.subject)
+        response["Data"]["keyword"] = self.keyword
 
         print("{0} room start game.".format(self.id))
 
         return response
+
+    def draw(self, event, pen, user):
+        turn = self.users.index(user)
+        if turn == self.now_turn:
+            print("this user's turn")
+            for user in self.users:
+                user.send(json.dumps(
+                    {
+                        "msgType": "rspTouchEvent",
+                        "Data": {
+                            "Event": event,
+                            "Pen": pen
+                        }
+                    }
+                ))
+
+    def end_game(self, win):
+        for user in self.users:
+            user.send(json.dumps(
+                {
+                    "msgType": "rspGameOver",
+                    "Data": {
+                        "reqResult": win,
+                        "msg": ""
+                    }
+                }
+            ))
 
     def is_full(self):
         return self.LIMIT <= self.count
