@@ -1,17 +1,11 @@
 import json
 from socketserver import BaseRequestHandler
 
+import response_template
 from room_manager import Room, RoomManager
 from user import User
 
 
-response_template = {
-    "msgType": "rspLogin",
-    "Data": {
-        "reqResult": True,
-        "msg": ""
-    }
-}
 retry = {
     "msgType": "rspAnswerCorrect",
     "Data": {
@@ -19,7 +13,15 @@ retry = {
         "msg": "Not correct answer."
     }
 }
+
 user_ids = []
+
+
+def logging(msg, data):
+    if data:
+        print("{0}: {1}".format(msg, data))
+    else:
+        print("{0}".format(msg))
 
 
 class SockHandler(BaseRequestHandler):
@@ -27,107 +29,115 @@ class SockHandler(BaseRequestHandler):
         self.null_count = 0
 
         # hand shake start
-        while self.null_count < 10:
-            try:
-                msg = self.request.recv(1024).decode().strip()
-            except ConnectionResetError:
-                print(
-                    "{0} shutdown during server recieves messages."
-                    .format(self.user.name)
-                )
-                return
-            print("Get Message:", msg, end="\n\n")
+        while self.null_count < 5:
+            msg = self.request.recv(1024).decode().strip()
+            logging("Get Message", msg)
 
             method, datas = self.processing_message(msg)
-            response = response_template
 
             if method == "reqLogin":
                 name = datas["userId"]
 
                 if name not in user_ids:
-                    response["Data"]["reqResult"] = True
-                    response["Data"]["msg"] = ""
-
                     self.user = User(self.request, name)
                     user_ids.append(name)
-                    self.request.send(bytes(json.dumps(response), "UTF-8"))
+                    self.request.send(bytes(json.dumps(
+                        response_template.basic("rspLogin", True)), "UTF-8")
+                    )
+                    logging("User login success with name", str(self.user))
                     break
                 else:
-                    response["Data"]["reqResult"] = False
-                    response["Data"]["msg"] = "Already ID exist."
-
-                    self.request.send(bytes(json.dumps(response), "UTF-8"))
-            elif method is None:
-                print("Passed null value")
-                continue
+                    self.request.send(bytes(json.dumps(
+                        response_template.basic(
+                            "rspLogin", False, "Already ID exist.")
+                    ), "UTF-8"))
+                    logging("Already ID exists with name", name)
         # hand shake end
-        print("Break First For Loop")
 
-        while self.null_count < 10:
+        while self.null_count < 5:
             msg = self.user.recv()
-            print("Get Message:", msg, end="\n\n")
+            logging("Get Message from {0}".format(str(self.user)), msg)
+
             method, datas = self.processing_message(msg)
 
             if method == "reqRoomList":
-                self.user.send(
-                    json.dumps(
-                        RoomManager().get_room_infomation()
-                    )
-                )
+                self.user.send(RoomManager().get_room_infomation())
+
             elif method == "reqEntranceRoom":
                 room_id = datas["roomId"]
+
                 if RoomManager().check_room_is_exist(room_id):
-                    self.user.send(
-                        json.dumps(
-                            RoomManager().join_room(room_id, self.user)
-                        )
-                    )
+                    self.user.send(RoomManager().join_room(room_id, self.user))
+
                     if RoomManager().find_room(room_id).is_full():
                         RoomManager().start_game(room_id)
                 else:
-                    print("{0} room is not exists.".format(room_id))
+                    logging("Room is not exists", room_id)
+
             elif method == "reqRoomMake":
                 self.user.send(
-                    json.dumps(
-                        RoomManager().new_rooms(
-                            datas["name"],
-                            self.user,
-                            datas["content"],
-                            datas["subject"]
-                        )
+                    RoomManager().new_rooms(
+                        datas["name"],
+                        self.user,
+                        datas["content"],
+                        datas["subject"]
                     )
                 )
+
             elif method == "reqRoomExit":
-                room_id = datas["roomId"]
-                self.user.send(
-                    json.dumps(
-                        RoomManager().exit_room(room_id, self.user)
-                    )
-                )
+                room_id = self.user.room.id
+
+                self.user.send(RoomManager().exit_room(room_id, self.user))
+
                 if RoomManager().find_room(room_id).is_empty():
                     RoomManager().remove_room(room_id)
+
             elif method == "reqTouchEvent":
-                room = RoomManager().find_room(room_id)
+                room = self.user.room
                 room.draw(datas["Event"], datas["Pen"], self.user)
+
             elif method == "reqAnswerCorrect":
-                room = RoomManager().find_room(room_id)
+                room = self.user.room
+
+                if not self.user == room.tagger:
+                    self.user.send(
+                        response_template.basic(
+                            "rspAnswerCorrect",
+                            False,
+                            "You are not a tagger."
+                        )
+                    )
+                    continue
+
+                logging("{0} room's answer".format(room.id), room.keyword)
+
                 if int(datas["attempt"]) > 3:
                     room.end_game(False)
                 elif room.keyword == datas["answer"]:
                     room.end_game(True)
                 else:
-                    self.user.send(retry)
-            elif method is None:
-                continue
-        print("Break Second For Loop")
-        del self.user
+                    self.user.send(
+                        response_template.basic(
+                            "rspAnswerCorrect",
+                            False
+                        )
+                    )
+
+        try:
+            user_ids.remove(self.user)
+            del self.user
+        except (AttributeError, ValueError):
+            pass
 
     def processing_message(self, message):
         try:
             msg = json.loads(message)
-            response = msg["msgType"], msg["Data"]
             self.null_count = 0
-            return response
+            return msg["msgType"], msg["Data"]
         except (TypeError, json.decoder.JSONDecodeError):
+            logging(
+                "Passed null method",
+                "{0} times left".format(5 - self.null_count)
+            )
             self.null_count += 1
             return None, None

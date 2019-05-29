@@ -12,4 +12,5 @@ class Singleton:
 
 
 def hash(sample_string):
-    return sample_string + str(randint(0, 100000))
+    # return sample_string + str(randint(0, 100000))
+    return sample_string

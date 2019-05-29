@@ -1,4 +1,7 @@
+import json
 import socket
+
+
 from room_manager import RoomManager
 
 
@@ -6,7 +9,10 @@ class User:
     def __init__(self, connection: socket.socket, name: str):
         self.connection = connection
         self.name = name
-        print("New user created, nickname: {0}.".format(name))
+        self.room = None
+
+    def __str__(self):
+        return self.name
 
     def __del__(self):
         self.connection.close()
@@ -23,12 +29,17 @@ class User:
             int
                 유저에게 전달한 메시지의 바이트 수
         """
-        if isinstance(msg, bytes):
-            return self.connection.send(msg)
-        elif isinstance(msg, str):
-            return self.connection.send(msg.encode())
-        else:
-            return self.connection.send(str(msg).encode())
+        try:
+            if isinstance(msg, bytes):
+                return self.connection.send(msg)
+            elif isinstance(msg, str):
+                return self.connection.send(msg.encode())
+            elif isinstance(msg, dict):
+                return self.connection.send(json.dumps(msg).encode())
+            else:
+                return self.connection.send(str(msg).encode())
+        except OSError:
+            print("OSError in user.py")
 
     def recv(self, buffer=4096) -> str:
         """해당 유저에게서 데이터를 받아온다.
@@ -43,5 +54,7 @@ class User:
         """
         try:
             return self.connection.recv(buffer).decode().strip()
+        except ConnectionAbortedError:
+            print("ConnectionAbortedError in user.py")
         except ConnectionResetError:
-            pass
+            print("ConnectionAbortedError in user.py")

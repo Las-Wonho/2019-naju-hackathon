@@ -3,6 +3,7 @@ import random
 import threading
 import time
 
+import response_template
 from utils import Singleton, hash
 
 
@@ -30,47 +31,23 @@ class RoomManager(Singleton):
 
     def new_rooms(self, name, user, desc, subject):
         room = Room(name, user, desc, subject)
+        user.room = room
         self.rooms.append(room)
-        return {
-            "msgType": "rspRoomMake",
-            "Data": {
-                "reqResult": True,
-                "msg": "",
-                "name": room.name,
-                "content": desc
-            }
-        }
 
-    def get_permission_response(self, observe=True, draw=True):
-        return {
-            "msgType": "rspPermission",
-            "Data": {
-                "reqResult": True,
-                "msg": "",
-                "permission": [
-                    {
-                        "type": "observe",
-                        "value": observe
-                    },
-                    {
-                        "type": "draw",
-                        "value": draw
-                    }
-                ]
-            }
-        }
+        return response_template.after_create(
+            "rspRoomMake", True, room.name, desc
+        )
 
     def get_room_infomation(self):
-        return {
-            "msgType": "rspRoomList",
-            "Data": {
-                "reqResult": True,
-                "roomList": [i.dictionaly for i in self.rooms]
-            }
-        }
+        return response_template.room_info(
+            "rspRoomList",
+            True,
+            [i.dictionaly for i in self.rooms]
+        )
 
     def join_room(self, room_id, user):
         room = self.find_room(room_id)
+        user.room = room
         return room.join_user(user)
 
     def exit_room(self, room_id, user):
@@ -81,32 +58,49 @@ class RoomManager(Singleton):
         room = self.find_room(room_id)
         response = room.start_game()
 
-        room.users[-1].send(json.dumps(response))
+        room.users[-1].send(response)
         for index, user in enumerate(room.users[:4]):
             response["Data"]["turn"] = index
-            user.send(json.dumps(response))
-
-        room.users[0].send(json.dumps(
-            self.get_permission_response(True, True))
-        )
-
-        room.users[-1].send(json.dumps(
-            self.get_permission_response(True, False)
-        ))
+            user.send(response)
 
         def thread_job():
+            time.sleep(3)
+
+            room.users[-1].send(
+                response_template.get_permission(
+                    "rspPermission", True, True, False
+                )
+            )
+
+            for i in range(1, 4):
+                room.users[i].send(
+                    response_template.get_permission(
+                        "rspPermission", True, False, False
+                    )
+                )
+
             for i in range(0, 4):
                 print("users[{0}] start drawing.".format(i))
-                time.sleep(5)
-                for j in range(0, i):
-                    room.users[i].send(json.dumps(
-                        self.get_permission_response(True, False)
-                    ))
-                room.users[i].send(json.dumps(
-                    self.get_permission_response(True, True)
-                ))
                 room.now_turn = i
+                room.users[i].send(
+                    response_template.get_permission(
+                        "rspPermission", True, True, True
+                    )
+                )
+                time.sleep(5)
+                room.users[i].send(
+                    response_template.get_permission(
+                        "rspPermission", True, True, False
+                    )
+                )
             print("End drawing. and tagger's turn.")
+            room.now_turn += 1
+            room.users[-1].send(
+                response_template.get_permission(
+                    "rspPermission", True, True, True
+                )
+            )
+
         t = threading.Thread(target=thread_job)
         t.start()
 
@@ -160,27 +154,25 @@ class Room(object):
         self.count = len(self.users)
 
     def join_user(self, user):
-        response = self.basic_response_template
-        response["msgType"] = "rspEntranceRoom"
-
         if self.count < self.LIMIT:
             self.users.append(user)
             self.update_count()
 
             print("{0} joined into {1} room.\n{1} room count is {2}.".format(
-                user.name, self.id, self.count))
+                user.name, self.id, self.count)
+            )
 
-            response["Data"]["reqResult"] = True
+            return response_template.basic("rspEntranceRoom", True)
         else:
-            response["Data"]["reqResult"] = False
-            response["Data"]["msg"] = "Already this room is full."
-
-        return response
+            return response_template.basic(
+                "rspEntranceRoom", False, "Already this room is full."
+            )
 
     def exit_room(self, user):
         response = self.basic_response_template
         response["msgType"] = "rspExitRoom"
 
+        user.room = None
         self.users.remove(user)
         self.update_count()
 
@@ -189,37 +181,24 @@ class Room(object):
         return response
 
     def start_game(self):
-        response = {
-            "msgType": "rspStartGame",
-            "Data": {
-                "reqResult": True,
-                "msg": "Start game.",
-                "roomId": "",
-                "turn": -1,
-                "subject": "",
-                "keyword": "",
-                "tagger": ""
-            }
-        }
-
-        random.shuffle(self.users)
-        tagger = self.users[4]
+        # random.shuffle(self.users)
+        tagger = self.users[-1]
         self.keyword = get_keyword(self.subject)
 
-        response["Data"]["msg"] = "Start Game"
-        response["Data"]["tagger"] = tagger.name
-        response["Data"]["roomId"] = self.id
-        response["Data"]["subject"] = self.subject
-        response["Data"]["keyword"] = self.keyword
-
         print("{0} room start game.".format(self.id))
-
-        return response
+        return response_template.start_game(
+            "rspStartGame",
+            True,
+            self.id,
+            self.subject,
+            self.keyword,
+            tagger.name
+        )
 
     def draw(self, event, pen, user):
         turn = self.users.index(user)
         if turn == self.now_turn:
-            print("this user's turn")
+            print("this user's turn : %s" % user.name)
             for user in self.users:
                 user.send(json.dumps(
                     {
@@ -233,15 +212,7 @@ class Room(object):
 
     def end_game(self, win):
         for user in self.users:
-            user.send(json.dumps(
-                {
-                    "msgType": "rspGameOver",
-                    "Data": {
-                        "reqResult": win,
-                        "msg": ""
-                    }
-                }
-            ))
+            user.send(response_template.basic("rspGameOver", win))
 
     def is_full(self):
         return self.LIMIT <= self.count
