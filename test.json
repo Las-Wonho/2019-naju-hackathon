@@ -44,7 +44,7 @@
     "game_event": {
         "msgType": "reqTouchEvent",
         "Data": {
-            "roomId": "test_room1572",
+            "roomId": "test_room",
             "userId": "las",
             "Event": {
                 "x": 12,
