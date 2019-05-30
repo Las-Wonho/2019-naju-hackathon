@@ -1,0 +1,75 @@
+{
+    "login": [
+        {
+            "msgType": "reqLogin",
+            "Data": {
+                "userId": "김대호"
+            }
+        },
+        {
+            "msgType": "reqLogin",
+            "Data": {
+                "userId": "김예진"
+            }
+        },
+        {
+            "msgType": "reqLogin",
+            "Data": {
+                "userId": "김혜연"
+            }
+        },
+        {
+            "msgType": "reqLogin",
+            "Data": {
+                "userId": "이정빈"
+            }
+        },
+        {
+            "msgType": "reqLogin",
+            "Data": {
+                "userId": "하원호"
+            }
+        }
+    ],
+    "room_request": {
+        "msgType": "reqRoomList",
+        "Data": ""
+    },
+    "join_room": {
+        "msgType": "reqEntranceRoom",
+        "Data": {
+            "roomId": "test_room"
+        }
+    },
+    "game_event": {
+        "msgType": "reqTouchEvent",
+        "Data": {
+            "roomId": "test_room",
+            "userId": "las",
+            "Event": {
+                "x": 12,
+                "y": 43,
+                "type": 0
+            },
+            "Pen": {
+                "width": 50,
+                "color": 12384
+            }
+        }
+    },
+    "check_answer": {
+        "msgType": "reqAnswerCorrect",
+        "Data": {
+            "attempt": 1,
+            "answer": ""
+        }
+    },
+    "make_room": {
+        "msgType": "reqRoomMake",
+        "Data": {
+            "name": "test_room",
+            "content": "test description",
+            "subject": "선생님"
+        }
+    }
+}
