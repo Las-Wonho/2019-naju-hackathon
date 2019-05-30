@@ -85,12 +85,12 @@ class SockHandler(BaseRequestHandler):
                 )
 
             elif method == "reqRoomExit":
-                room_id = self.user.room.id
+                room = self.user.room
 
-                self.user.send(RoomManager().exit_room(room_id, self.user))
+                self.user.send(RoomManager().exit_room(room, self.user))
 
-                if RoomManager().find_room(room_id).is_empty():
-                    RoomManager().remove_room(room_id)
+                if room.is_empty():
+                    RoomManager().remove_room(room)
 
             elif method == "reqTouchEvent":
                 room = self.user.room
@@ -109,19 +109,32 @@ class SockHandler(BaseRequestHandler):
                     )
                     continue
 
-                logging("{0} room's answer".format(room.id), room.keyword)
-
-                if int(datas["attempt"]) > 3:
-                    room.end_game(False)
-                elif room.keyword == datas["answer"]:
-                    room.end_game(True)
-                else:
+                elif not room.now_turn == -1:
                     self.user.send(
                         response_template.basic(
                             "rspAnswerCorrect",
-                            False
+                            False,
+                            "It's not tagger's turn."
                         )
                     )
+                    continue
+
+                if room.keyword == datas["answer"]:
+                    room.end_game(True)
+                else:
+                    room.end_game(False)
+
+                # if int(datas["attempt"]) > 3:
+                #     room.end_game(False)
+                # elif room.keyword == datas["answer"]:
+                #     room.end_game(True)
+                # else:
+                #     self.user.send(
+                #         response_template.basic(
+                #             "rspAnswerCorrect",
+                #             False
+                #         )
+                #     )
 
         try:
             user_ids.remove(self.user)

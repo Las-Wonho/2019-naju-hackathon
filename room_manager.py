@@ -50,8 +50,7 @@ class RoomManager(Singleton):
         user.room = room
         return room.join_user(user)
 
-    def exit_room(self, room_id, user):
-        room = self.find_room(room_id)
+    def exit_room(self, user):
         return room.exit_room(user)
 
     def start_game(self, room_id):
@@ -80,7 +79,7 @@ class RoomManager(Singleton):
                 )
 
             for i in range(0, 4):
-                print("users[{0}] start drawing.".format(i))
+                print("{0} start drawing.".format(room.users[i].name))
                 room.now_turn = i
                 room.users[i].send(
                     response_template.get_permission(
@@ -94,7 +93,7 @@ class RoomManager(Singleton):
                     )
                 )
             print("End drawing. and tagger's turn.")
-            room.now_turn += 1
+            room.now_turn = -1
             room.users[-1].send(
                 response_template.get_permission(
                     "rspPermission", True, True, True
@@ -107,8 +106,7 @@ class RoomManager(Singleton):
     def find_room(self, id):
         return [room for room in self.rooms if room.id == id][0]
 
-    def remove_room(self, room_id):
-        room = self.find_room(room_id)
+    def remove_room(self, room):
         self.rooms.remove(room)
         del room
 
@@ -182,7 +180,7 @@ class Room(object):
 
     def start_game(self):
         # random.shuffle(self.users)
-        tagger = self.users[-1]
+        self.tagger = self.users[-1]
         self.keyword = get_keyword(self.subject)
 
         print("{0} room start game.".format(self.id))
@@ -192,7 +190,7 @@ class Room(object):
             self.id,
             self.subject,
             self.keyword,
-            tagger.name
+            self.tagger.name
         )
 
     def draw(self, event, pen, user):

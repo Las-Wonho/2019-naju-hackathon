@@ -3,31 +3,31 @@
         {
             "msgType": "reqLogin",
             "Data": {
-                "userId": "병규"
+                "userId": "김대호"
             }
         },
         {
             "msgType": "reqLogin",
             "Data": {
-                "userId": "연상"
+                "userId": "김예진"
             }
         },
         {
             "msgType": "reqLogin",
             "Data": {
-                "userId": "동국"
+                "userId": "김혜연"
             }
         },
         {
             "msgType": "reqLogin",
             "Data": {
-                "userId": "완우"
+                "userId": "이정빈"
             }
         },
         {
             "msgType": "reqLogin",
             "Data": {
-                "userId": "현동"
+                "userId": "하원호"
             }
         }
     ],
